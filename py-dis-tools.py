@@ -281,7 +281,7 @@ class Parser:
                 self.stack.append(self.names.get(name, UnknownName(name)))
                 print("LOAD NAME", name)
             case "LOAD_ATTR", attr:
-                attr_of = stack.pop()
+                attr_of = self.stack.pop()
                 self.stack.append(Attribute(attr_of, attr, attr_of.get_attr(attr)))
                 print("LOAD ATTR of", attr_of, "name", attr)
 
