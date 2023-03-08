@@ -297,7 +297,7 @@ class Parser:
                         print(f"STORE NAME ({len(self.active_jumps)} active jumps + changed to possibleOutcomes)", name)
                         before = self.names[name]
                         self.names[name] = PossibleOutcomes(
-                            [Outcome([i["condition"] for i in self.active_jumps], self.stack.pop())],
+                            [Outcome([i.condition for i in self.active_jumps], self.stack.pop())],
                             else_outcome=before
                         )
             case "STORE_ATTR", attr:
@@ -314,10 +314,7 @@ class Parser:
             case "POP_JUMP_FORWARD_IF_FALSE", _:
                 destination = line.argval
                 condition = self.stack.pop()
-                self.active_jumps.append({
-                    "condition": condition,
-                    "destination": destination
-                })
+                self.active_jumps.append(Jump(condition=condition, destination=destination))
                 print("POP_JUMP_FORWARD_IF not", condition, "to", destination)
 
             case "PRECALL", attrcount:
