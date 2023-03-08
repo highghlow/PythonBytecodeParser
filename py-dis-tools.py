@@ -108,94 +108,6 @@ class Jump:
     def __repr__(self) -> str:
         return f"jump({self.condition} -> {self.destination})"
 
-source_full = '''
-
-# load constants onto the stack
-constant_int = 42
-constant_float = 2.71828
-constant_str = "hello, world!"
-constant_bytes = b'\\x00\\x01\\x02'
-constant_tuple = (1, 2, 3)
-
-# store a variable
-local_var = a + b
-
-# control flow statements
-if a > b:
-    print("a is greater than b")
-elif a < b:
-    print("a is less than b")
-else:
-    print("a and b are equal")
-
-while a < 10:
-    a += 1
-
-for i in range(10):
-    print(i)
-
-# function call and return
-def add(x, y):
-    return x + y
-
-result = add(a, b)
-
-# binary operations
-sum = a + b
-difference = a - b
-product = a * b
-quotient = a / b
-modulo = a '''+"%"+''' b
-
-# compare values
-equal_check = (a == b)
-not_equal_check = (a != b)
-greater_check = (a > b)
-less_check = (a < b)
-
-# logical operations
-and_check = (a > b) and (b > 0)
-or_check = (a > b) or (b < 0)
-not_check = not (a > b)
-
-# attribute access and method call
-string_length = len(constant_str)
-list_obj = [1, 2, 3]
-list_length = len(list_obj)
-list_obj.append(4)
-
-# exceptions and errors
-try:
-    num = int("not a number")
-except ValueError:
-    print("invalid literal for int()")
-
-assert a == b, "a and b are not equal"
-
-'''
-
-source_basic_if = '''
-a = 0
-if b > 0 or b != 2:
-    a = 1
-print(a)
-'''
-
-comp = compile(source_basic_if, "test", "exec")
-
-stack = []
-calls = []
-names = {
-    "print" : BuiltIn("print")
-}
-
-active_jumps = []
-
-kw_names = 0
-
-bytecode = dis.Bytecode(comp)
-constants = bytecode.codeobj.co_consts
-print(bytecode.dis())
 
 BASE_NAMES = {
     "abs" : BuiltIn("abs"),
@@ -341,12 +253,98 @@ class Parser:
             case _, _:
                 print("FAILED", line)
 
-print()
-print("STACK:")
-print(*stack, sep="\n")
-print()
-print("NAMES:")
-print(*(f"{k} : {v}" for k, v in names.items()), sep="\n")
-print()
-print("CALLS:")
-print(*calls, sep="\n")
+def main():
+    source_full = '''
+
+# load constants onto the stack
+constant_int = 42
+constant_float = 2.71828
+constant_str = "hello, world!"
+constant_bytes = b'\\x00\\x01\\x02'
+constant_tuple = (1, 2, 3)
+
+# store a variable
+local_var = a + b
+
+# control flow statements
+if a > b:
+    print("a is greater than b")
+elif a < b:
+    print("a is less than b")
+else:
+    print("a and b are equal")
+
+while a < 10:
+    a += 1
+
+for i in range(10):
+    print(i)
+
+# function call and return
+def add(x, y):
+    return x + y
+
+result = add(a, b)
+
+# binary operations
+sum = a + b
+difference = a - b
+product = a * b
+quotient = a / b
+modulo = a '''+"%"+''' b
+
+# compare values
+equal_check = (a == b)
+not_equal_check = (a != b)
+greater_check = (a > b)
+less_check = (a < b)
+
+# logical operations
+and_check = (a > b) and (b > 0)
+or_check = (a > b) or (b < 0)
+not_check = not (a > b)
+
+# attribute access and method call
+string_length = len(constant_str)
+list_obj = [1, 2, 3]
+list_length = len(list_obj)
+list_obj.append(4)
+
+# exceptions and errors
+try:
+    num = int("not a number")
+except ValueError:
+    print("invalid literal for int()")
+
+assert a == b, "a and b are not equal"
+
+    '''
+
+    source_basic_if = '''
+a = 0
+if b > 0 or b != 2:
+    a = 1
+print(a)
+    '''
+
+    comp = compile(source_basic_if, "test", "exec")
+
+    bytecode = dis.Bytecode(comp)
+    constants = bytecode.codeobj.co_consts
+    print(bytecode.dis())
+    
+    parser = Parser(consts=constants)
+    parser.parse(bytecode)
+    
+    print()
+    print("STACK:")
+    print(*parser.stack, sep="\n")
+    print()
+    print("NAMES:")
+    print(*(f"{k} : {v}" for k, v in parser.names.items()), sep="\n")
+    print()
+    print("CALLS:")
+    print(*parser.calls, sep="\n")
+
+if __name__ == "__main__":
+    main()
