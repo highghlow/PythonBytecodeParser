@@ -228,6 +228,11 @@ class Parser:
                 condition = self.stack.pop()
                 self.active_jumps.append(Jump(condition=condition, destination=destination))
                 print("POP_JUMP_FORWARD_IF not", condition, "to", destination)
+            case "POP_JUMP_FORWARD_IF_TRUE", _:
+                destination = line.argval
+                condition = self.stack.pop()
+                self.active_jumps.append(Jump(condition=Operation(op="not", obj1=condition), destination=destination))
+                print("POP_JUMP_FORWARD_IF", condition, "to", destination)
 
             case "PRECALL", attrcount:
                 print("PRECALL", attrcount)
