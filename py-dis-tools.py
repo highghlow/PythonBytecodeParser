@@ -66,17 +66,23 @@ class Call(AbstractObject):
         return f"call({self.func}, {', '.join(str(i) for i in self.args)}, {', '.join(f'{k, v}' for k, v in self.kwargs.items())}, modifications: {self.modified_attrs})"
 
 class Operation(AbstractObject):
-    def __init__(self, op : str, obj1 : AbstractObject, obj2 : AbstractObject | None = None):
+    def __init__(self, op : str, obj1 : AbstractObject, obj2 : AbstractObject):
         self.obj1 = obj1
         self.obj2 = obj2
         self.op = op
         
         super().__init__()
     def __repr__(self) -> str:
-        if self.obj2 is None:
-            f"operation({self.op} {self.obj1})"
-        else:
-            return f"operation({self.obj1} {self.op} {self.obj2})"
+        return f"operation({self.obj1} {self.op} {self.obj2})"
+
+class UnaryOperation(AbstractObject):
+    def __init__(self, op : str, obj : AbstractObject):
+        self.obj = obj
+        self.op = op
+        
+        super().__init__()
+    def __repr__(self) -> str:
+        return f"operation({self.op} {self.obj})"
 
 class Compare(AbstractObject):
     def __init__(self, comp : str, obj1 : AbstractObject, obj2 : AbstractObject):
@@ -234,7 +240,7 @@ class Parser:
             case "POP_JUMP_FORWARD_IF_TRUE", _:
                 destination = line.argval
                 condition = self.stack.pop()
-                self.active_jumps.append(Jump(condition=Operation(op="not", obj1=condition), destination=destination))
+                self.active_jumps.append(Jump(condition=UnaryOperation(op="not", obj=condition), destination=destination))
                 print("POP_JUMP_FORWARD_IF", condition, "to", destination)
 
             case "PRECALL", attrcount:
