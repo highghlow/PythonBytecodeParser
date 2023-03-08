@@ -329,11 +329,14 @@ class Parser:
                 kwattrs = {}
                 
                 for i in range(attrcount):
-                    if i < kw_names:
-                        pass
-                    attrs.insert(0, self.stack.pop())
+                    if i in self.kw_names:
+                        kwattrs[i] = self.stack.pop()
+                    else:
+                        attrs.insert(0, self.stack.pop())
+                
+                self.kw_names = []
                 func = self.stack.pop()
-                call = Call(func, attrs)
+                call = Call(func, attrs, kwattrs)
                 self.calls.append(call)
                 self.stack.append(call)
                 print("CALL", attrcount)
