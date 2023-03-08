@@ -73,7 +73,10 @@ class Operation(AbstractObject):
         
         super().__init__()
     def __repr__(self) -> str:
-        return f"operation({self.obj1} {self.op} {self.obj2})"
+        if self.obj2 is None:
+            f"operation({self.op} {self.obj1})"
+        else:
+            return f"operation({self.obj1} {self.op} {self.obj2})"
 
 class Compare(AbstractObject):
     def __init__(self, comp : str, obj1 : AbstractObject, obj2 : AbstractObject):
