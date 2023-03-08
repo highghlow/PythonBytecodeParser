@@ -219,10 +219,15 @@ BASE_NAMES = {
 }
 
 class Parser:
-    def __init__(self, names : dict[str, AbstractObject] = ..., stack : list[AbstractObject] = ..., active_jumps : list[Jump] = ..., calls : list[Call] = ..., kw_names : list[str] = ...):
-        self.set_state(names=names, stack=stack, active_jumps=active_jumps, calls=calls, kw_names=kw_names)
+    def __init__(self, consts : list = ..., names : dict[str, AbstractObject] = ..., stack : list[AbstractObject] = ..., active_jumps : list[Jump] = ..., calls : list[Call] = ..., kw_names : list[str] = ...):
+        self.set_state(consts=consts, names=names, stack=stack, active_jumps=active_jumps, calls=calls, kw_names=kw_names)
 
-    def set_state(self, names : dict[str, AbstractObject] = ..., stack : list[AbstractObject] = ..., active_jumps : list[Jump] = ..., calls : list[Call] = ..., kw_names : list[str] = ...):
+    def set_state(self, consts : list = ..., names : dict[str, AbstractObject] = ..., stack : list[AbstractObject] = ..., active_jumps : list[Jump] = ..., calls : list[Call] = ..., kw_names : list[str] = ...):
+        if consts == ...:
+            self.consts : list = []
+        else:
+            self.consts : list = consts
+        
         if names == ...:
             self.names : dict[str, AbstractObject] = BASE_NAMES
         else:
