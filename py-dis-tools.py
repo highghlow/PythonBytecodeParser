@@ -219,81 +219,97 @@ BASE_NAMES = {
 }
 
 class Parser:
-    def __init__(self, names : dict[str, AbstractObject] = ..., stack : list[AbstractObject] = ..., active_jumps : list[Jump] = ...):
+    def __init__(self, names : dict[str, AbstractObject] = ..., stack : list[AbstractObject] = ..., active_jumps : list[Jump] = ..., calls : list[Call] = ..., kw_names : list[str] = ...):
+        self.set_state(names=names, stack=stack, active_jumps=active_jumps, calls=calls, kw_names=kw_names)
+
+    def set_state(self, names : dict[str, AbstractObject] = ..., stack : list[AbstractObject] = ..., active_jumps : list[Jump] = ..., calls : list[Call] = ..., kw_names : list[str] = ...):
         if names == ...:
-            self.names = BASE_NAMES
+            self.names : dict[str, AbstractObject] = BASE_NAMES
         else:
-            self.names = names
+            self.names : dict[str, AbstractObject] = names
         
         if stack == ...:
-            self.stack = []
+            self.stack : list[AbstractObject] = []
         else:
-            self.stack = stack
+            self.stack : list[AbstractObject] = stack
         
         if active_jumps == ...:
-            self.active_jumps = []
+            self.active_jumps : list[Jump] = []
         else:
-            self.active_jumps = active_jumps
+            self.active_jumps : list[Jump] = active_jumps
+        
+        if calls == ...:
+            self.calls : list[Call] = []
+        else:
+            self.calls : list[Call] = calls
+        
+        if kw_names == ...:
+            self.kw_names : list[str] = []
+        else:
+            self.kw_names : list[str] = kw_names
+
     def parse(self, bytecode : dis.Bytecode, reset_state = True):
+        if reset_state:
+            self.set_state()
         for line in bytecode:
-            self.p
+            self.parse_line(line)
+
     def parse_line(self, line : dis.Instruction):
-        mtch = (line.opname, line.argval)
-        match mtch:
+        match (line.opname, line.argval):
             case "RESUME", _:
                 pass
             case "PUSH_NULL", _:
-                stack.append(None)
+                self.stack.append(None)
                 print("PUSH NULL")
             case "POP_TOP", _:
-                stack.pop()
+                self.stack.pop()
                 print("POP TOP")
 
             case "IMPORT_NAME", mdl:
-                stack.append(Module(mdl))
+                self.stack.append(Module(mdl))
                 print("IMPORT", mdl)
 
             case "LOAD_CONST", const:
-                stack.append(Value(const))
+                self.stack.append(Value(const))
                 print("LOAD CONST", const)
             case "LOAD_NAME", name:
-                stack.append(names.get(name, UnknownName(name)))
+                self.stack.append(self.names.get(name, UnknownName(name)))
                 print("LOAD NAME", name)
             case "LOAD_ATTR", attr:
                 attr_of = stack.pop()
-                stack.append(Attribute(attr_of, attr, attr_of.get_attr(attr)))
+                self.stack.append(Attribute(attr_of, attr, attr_of.get_attr(attr)))
                 print("LOAD ATTR of", attr_of, "name", attr)
 
             case "STORE_NAME", name:
-                if not active_jumps:
+                if not self.active_jumps:
                     print("STORE NAME (no active jumps)", name)
-                    names[name] = stack.pop()
-                elif name in names.keys():
-                    if isinstance(names[name], PossibleOutcomes):
-                        print(f"STORE NAME ({len(active_jumps)} active jumps)", name)
-                        names[name].add_outcome(Outcome())
+                    self.names[name] = self.stack.pop()
+                elif name in self.names.keys():
+                    if isinstance(self.names[name], PossibleOutcomes):
+                        print(f"STORE NAME ({len(self.active_jumps)} active jumps)", name)
+                        self.names[name].add_outcome(Outcome())
                     else:
-                        print(f"STORE NAME ({len(active_jumps)} active jumps + changed to possibleOutcomes)", name)
-                        before = names[name]
-                        names[name] = PossibleOutcomes(
-                            [Outcome([i["condition"] for i in active_jumps], stack.pop())],
+                        print(f"STORE NAME ({len(self.active_jumps)} active jumps + changed to possibleOutcomes)", name)
+                        before = self.names[name]
+                        self.names[name] = PossibleOutcomes(
+                            [Outcome([i["condition"] for i in self.active_jumps], self.stack.pop())],
                             else_outcome=before
                         )
             case "STORE_ATTR", attr:
-                to = stack.pop()
-                val = stack.pop()
+                to = self.stack.pop()
+                val = self.stack.pop()
                 to.set_attr(attr, val)
                 print("STORE ATTR of", val, "name", attr)
 
             case "COMPARE_OP", comp:
-                obj2 = stack.pop()
-                obj1 = stack.pop()
-                stack.append(Compare(comp, obj1, obj2))
+                obj2 = self.stack.pop()
+                obj1 = self.stack.pop()
+                self.stack.append(Compare(comp, obj1, obj2))
                 print("COMPARE", obj1, comp, obj2)
             case "POP_JUMP_FORWARD_IF_FALSE", _:
                 destination = line.argval
-                condition = stack.pop()
-                active_jumps.append({
+                condition = self.stack.pop()
+                self.active_jumps.append({
                     "condition": condition,
                     "destination": destination
                 })
@@ -310,11 +326,11 @@ class Parser:
                 for i in range(attrcount):
                     if i < kw_names:
                         pass
-                    attrs.insert(0, stack.pop())
-                func = stack.pop()
+                    attrs.insert(0, self.stack.pop())
+                func = self.stack.pop()
                 call = Call(func, attrs)
-                calls.append(call)
-                stack.append(call)
+                self.calls.append(call)
+                self.stack.append(call)
                 print("CALL", attrcount)
                 
             case _, _:
