@@ -117,6 +117,11 @@ class Jump:
     def __repr__(self) -> str:
         return f"jump({self.condition} -> {self.destination})"
 
+class OrStack:
+    def __init__(self, condition : AbstractObject, end : int) -> None:
+        self.condition = condition
+        self.end = end
+
 
 BASE_NAMES = {
     "abs" : BuiltIn("abs"),
@@ -140,10 +145,10 @@ BASE_NAMES = {
 }
 
 class Parser:
-    def __init__(self, consts : list = ..., names : dict[str, AbstractObject] = ..., stack : list[AbstractObject] = ..., active_jumps : list[Jump] = ..., calls : list[Call] = ..., kw_names : list[str] = ...):
-        self.set_state(consts=consts, names=names, stack=stack, active_jumps=active_jumps, calls=calls, kw_names=kw_names)
+    def __init__(self, consts : list = ..., names : dict[str, AbstractObject] = ..., stack : list[AbstractObject] = ..., active_jumps : list[Jump] = ..., or_stack : list[OrStack] = ..., calls : list[Call] = ..., kw_names : list[str] = ...):
+        self.set_state(consts=consts, names=names, stack=stack, active_jumps=active_jumps, or_stack=or_stack, calls=calls, kw_names=kw_names)
 
-    def set_state(self, consts : list = ..., names : dict[str, AbstractObject] = ..., stack : list[AbstractObject] = ..., active_jumps : list[Jump] = ..., calls : list[Call] = ..., kw_names : list[str] = ...):
+    def set_state(self, consts : list = ..., names : dict[str, AbstractObject] = ..., stack : list[AbstractObject] = ..., active_jumps : list[Jump] = ..., or_stack : list[OrStack] = ..., calls : list[Call] = ..., kw_names : list[str] = ...):
         if consts == ...:
             self.consts : list = []
         else:
@@ -164,6 +169,11 @@ class Parser:
         else:
             self.active_jumps : list[Jump] = active_jumps
         
+        if or_stack == ...:
+            self.or_stack : list[OrStack] = []
+        else:
+            self.or_stack : list[OrStack] = or_stack
+        
         if calls == ...:
             self.calls : list[Call] = []
         else:
@@ -178,6 +188,19 @@ class Parser:
         if reset_state:
             self.set_state()
         for line in bytecode:
+            active_jumps_to_remove = []
+            for active_jump in self.active_jumps:
+                if line.offset > active_jump.destination:
+                    active_jumps_to_remove.append(active_jump)
+            for active_jump in active_jumps_to_remove:
+                self.active_jumps.remove(active_jump)
+
+            or_stack_items_to_remove = []
+            for or_stack in self.or_stack:
+                if line.offset > or_stack.end:
+                    or_stack_items_to_remove.append(or_stack)
+            for or_stack in or_stack_items_to_remove:
+                self.or_stack.remove(or_stack)
             self.parse_line(line)
 
     def parse_line(self, line : dis.Instruction):
@@ -210,17 +233,16 @@ class Parser:
                 if not self.active_jumps:
                     print("STORE NAME (no active jumps)", name)
                     self.names[name] = self.stack.pop()
-                elif name in self.names.keys():
-                    if isinstance(self.names[name], PossibleOutcomes):
-                        print(f"STORE NAME ({len(self.active_jumps)} active jumps)", name)
-                        self.names[name].add_outcome(Outcome())
-                    else:
-                        print(f"STORE NAME ({len(self.active_jumps)} active jumps + changed to possibleOutcomes)", name)
-                        before = self.names[name]
-                        self.names[name] = PossibleOutcomes(
-                            [Outcome([i.condition for i in self.active_jumps], self.stack.pop())],
-                            else_outcome=before
-                        )
+                elif isinstance(self.names.get(name, None), PossibleOutcomes):
+                    print(f"STORE NAME ({len(self.active_jumps)} active jumps)", name)
+                    self.names[name].add_outcome(Outcome([i.condition for i in self.active_jumps], self.stack.pop()))
+                else:
+                    print(f"STORE NAME ({len(self.active_jumps)} active jumps + changed to possibleOutcomes)", name)
+                    before = self.names.get(name, None)
+                    self.names[name] = PossibleOutcomes(
+                        [Outcome([i.condition for i in self.active_jumps], self.stack.pop())],
+                        else_outcome=before
+                    )
             case "STORE_ATTR", attr:
                 to = self.stack.pop()
                 val = self.stack.pop()
@@ -235,13 +257,15 @@ class Parser:
             case "POP_JUMP_FORWARD_IF_FALSE", _:
                 destination = line.argval
                 condition = self.stack.pop()
+                for or_stack in self.or_stack:
+                    condition = Operation(op="or", obj1=condition, obj2=or_stack.condition)
+                self.or_stack = []
                 self.active_jumps.append(Jump(condition=condition, destination=destination))
-                print("POP_JUMP_FORWARD_IF not", condition, "to", destination)
+                print("POP_JUMP_FORWARD_IF_NOT to", destination)
             case "POP_JUMP_FORWARD_IF_TRUE", _:
-                destination = line.argval
-                condition = self.stack.pop()
-                self.active_jumps.append(Jump(condition=UnaryOperation(op="not", obj=condition), destination=destination))
-                print("POP_JUMP_FORWARD_IF", condition, "to", destination)
+                end = line.argval
+                self.or_stack.append(OrStack(condition=self.stack.pop(), end=end))
+                print("POP_JUMP_FORWARD_IF to", end)
 
             case "PRECALL", attrcount:
                 print("PRECALL", attrcount)
