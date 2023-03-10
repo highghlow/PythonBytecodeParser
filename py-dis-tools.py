@@ -360,8 +360,9 @@ assert a == b, "a and b are not equal"
 
     source_basic_if = '''
 a = 0
-if b > 0 or b != 2:
-    a = 1
+while b > 0:
+    a = a + 1
+    b = b - 1
 print(a)
     '''
 
