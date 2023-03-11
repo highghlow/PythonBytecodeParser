@@ -122,33 +122,8 @@ class OrStack:
         self.condition = condition
         self.end = end
 
-
-BASE_NAMES = {
-    "abs" : BuiltIn("abs"),
-    "aiter" : BuiltIn("aiter"),
-    "all" : BuiltIn("all"),
-    "any" : BuiltIn("any"),
-    "anext" : BuiltIn("anext"),
-    "ascii" : BuiltIn("ascii"),
-    "bin" : BuiltIn("bin"),
-    "bool" : BuiltIn("bool"),
-    "breakpoint" : BuiltIn("breakpoint"),
-    "bytearray" : BuiltIn("bytearray"),
-    "bytes" : BuiltIn("bytes"),
-    "callable" : BuiltIn("callable"),
-    "chr" : BuiltIn("chr"),
-    "classmethod" : BuiltIn("classmethod"),
-    "compile" : BuiltIn("compile"),
-    "complex" : BuiltIn("complex"),
-    #TODO: add more built-ins
-    "print" : BuiltIn("print"),
-}
-
-class Parser:
+class ParserState:
     def __init__(self, consts : list = ..., names : dict[str, AbstractObject] = ..., stack : list[AbstractObject] = ..., active_jumps : list[Jump] = ..., or_stack : list[OrStack] = ..., calls : list[Call] = ..., kw_names : list[str] = ...):
-        self.set_state(consts=consts, names=names, stack=stack, active_jumps=active_jumps, or_stack=or_stack, calls=calls, kw_names=kw_names)
-
-    def set_state(self, consts : list = ..., names : dict[str, AbstractObject] = ..., stack : list[AbstractObject] = ..., active_jumps : list[Jump] = ..., or_stack : list[OrStack] = ..., calls : list[Call] = ..., kw_names : list[str] = ...):
         if consts == ...:
             self.consts : list = []
         else:
@@ -183,6 +158,52 @@ class Parser:
             self.kw_names : list[str] = []
         else:
             self.kw_names : list[str] = kw_names
+
+BASE_NAMES = {
+    "abs" : BuiltIn("abs"),
+    "aiter" : BuiltIn("aiter"),
+    "all" : BuiltIn("all"),
+    "any" : BuiltIn("any"),
+    "anext" : BuiltIn("anext"),
+    "ascii" : BuiltIn("ascii"),
+    "bin" : BuiltIn("bin"),
+    "bool" : BuiltIn("bool"),
+    "breakpoint" : BuiltIn("breakpoint"),
+    "bytearray" : BuiltIn("bytearray"),
+    "bytes" : BuiltIn("bytes"),
+    "callable" : BuiltIn("callable"),
+    "chr" : BuiltIn("chr"),
+    "classmethod" : BuiltIn("classmethod"),
+    "compile" : BuiltIn("compile"),
+    "complex" : BuiltIn("complex"),
+    #TODO: add more built-ins
+    "print" : BuiltIn("print"),
+}
+
+class Parser:
+    def __init__(self, consts : list = ..., names : dict[str, AbstractObject] = ..., stack : list[AbstractObject] = ..., active_jumps : list[Jump] = ..., or_stack : list[OrStack] = ..., calls : list[Call] = ..., kw_names : list[str] = ...):
+        self.set_state(ParserState(consts=consts, names=names, stack=stack, active_jumps=active_jumps, or_stack=or_stack, calls=calls, kw_names=kw_names))
+    
+    @classmethod
+    def from_state(cls, state : ParserState):
+        self = cls()
+        self.set_state(state=state)
+        return self
+    
+    def get_state(self):
+        return ParserState()
+    
+    def set_state(self, state : ParserState = ...):
+        if (state == ...):
+            state = ParserState()
+        
+        self.consts = state.consts
+        self.names = state.names
+        self.stack = state.stack
+        self.active_jumps = state.active_jumps
+        self.or_stack = state.or_stack
+        self.calls = state.calls
+        self.kw_names = state.kw_names
 
     def parse(self, bytecode : dis.Bytecode, reset_state = True):
         if reset_state:
