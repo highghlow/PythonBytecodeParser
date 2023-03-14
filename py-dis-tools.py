@@ -21,6 +21,14 @@ class UnknownName(AbstractObject):
     def __repr__(self) -> str:
         return f"unknown-name({self.name}, modifications: {self.modified_attrs})"
 
+class UnknownFastName(AbstractObject):
+    def __init__(self, name : str):
+        self.name = name
+        
+        super().__init__()
+    def __repr__(self) -> str:
+        return f"unknown-fast-name({self.name}, modifications: {self.modified_attrs})"
+
 class Value(AbstractObject):
     def __init__(self, value) -> None:
         self.value = value
@@ -123,7 +131,7 @@ class OrStack:
         self.end = end
 
 class ParserState:
-    def __init__(self, consts : list = ..., names : dict[str, AbstractObject] = ..., stack : list[AbstractObject] = ..., active_jumps : list[Jump] = ..., or_stack : list[OrStack] = ..., calls : list[Call] = ..., kw_names : list[str] = ...):
+    def __init__(self, consts : list = ..., names : dict[str, AbstractObject] = ..., fast_names : dict[str, AbstractObject] = ..., stack : list[AbstractObject] = ..., active_jumps : list[Jump] = ..., or_stack : list[OrStack] = ..., calls : list[Call] = ..., kw_names : list[str] = ..., return_value : AbstractObject | None = ...):
         if consts == ...:
             self.consts : list = []
         else:
@@ -133,6 +141,11 @@ class ParserState:
             self.names : dict[str, AbstractObject] = BASE_NAMES
         else:
             self.names : dict[str, AbstractObject] = names
+        
+        if fast_names == ...:
+            self.fast_names : dict[str, AbstractObject] = dict()
+        else:
+            self.fast_names : dict[str, AbstractObject] = names
         
         if stack == ...:
             self.stack : list[AbstractObject] = []
@@ -158,6 +171,11 @@ class ParserState:
             self.kw_names : list[str] = []
         else:
             self.kw_names : list[str] = kw_names
+        
+        if return_value == ...:
+            self.return_value : AbstractObject | None = None
+        else:
+            self.return_value : AbstractObject | None = return_value
 
 BASE_NAMES = {
     "abs" : BuiltIn("abs"),
@@ -181,8 +199,8 @@ BASE_NAMES = {
 }
 
 class Parser:
-    def __init__(self, consts : list = ..., names : dict[str, AbstractObject] = ..., stack : list[AbstractObject] = ..., active_jumps : list[Jump] = ..., or_stack : list[OrStack] = ..., calls : list[Call] = ..., kw_names : list[str] = ...):
-        self.set_state(ParserState(consts=consts, names=names, stack=stack, active_jumps=active_jumps, or_stack=or_stack, calls=calls, kw_names=kw_names))
+    def __init__(self, consts : list = ..., names : dict[str, AbstractObject] = ..., fast_names : dict[str, AbstractObject] = ..., stack : list[AbstractObject] = ..., active_jumps : list[Jump] = ..., or_stack : list[OrStack] = ..., calls : list[Call] = ..., kw_names : list[str] = ..., return_value : AbstractObject | None = ...):
+        self.set_state(ParserState(consts=consts, names=names, fast_names=fast_names, stack=stack, active_jumps=active_jumps, or_stack=or_stack, calls=calls, kw_names=kw_names, return_value=return_value))
     
     @classmethod
     def from_state(cls, state : ParserState):
@@ -199,11 +217,13 @@ class Parser:
         
         self.consts = state.consts
         self.names = state.names
+        self.fast_names = state.fast_names
         self.stack = state.stack
         self.active_jumps = state.active_jumps
         self.or_stack = state.or_stack
         self.calls = state.calls
         self.kw_names = state.kw_names
+        self.return_value = state.return_value
 
     def parse(self, bytecode : dis.Bytecode, reset_state = True):
         if reset_state:
@@ -211,7 +231,7 @@ class Parser:
         for line in bytecode:
             active_jumps_to_remove = []
             for active_jump in self.active_jumps:
-                if line.offset > active_jump.destination:
+                if line.offset > active_jump.destination and active_jump.destination != -1:
                     active_jumps_to_remove.append(active_jump)
             for active_jump in active_jumps_to_remove:
                 self.active_jumps.remove(active_jump)
@@ -222,7 +242,9 @@ class Parser:
                     or_stack_items_to_remove.append(or_stack)
             for or_stack in or_stack_items_to_remove:
                 self.or_stack.remove(or_stack)
-            self.parse_line(line)
+
+            if not self.parse_line(line):
+                break
 
     def parse_line(self, line : dis.Instruction):
         match (line.opname, line.argval):
@@ -244,6 +266,9 @@ class Parser:
                 print("LOAD CONST", const)
             case "LOAD_NAME", name:
                 self.stack.append(self.names.get(name, UnknownName(name)))
+                print("LOAD NAME", name)
+            case "LOAD_FAST", name:
+                self.stack.append(self.fast_names.get(name, UnknownFastName(name)))
                 print("LOAD NAME", name)
             case "LOAD_ATTR", attr:
                 attr_of = self.stack.pop()
@@ -308,9 +333,35 @@ class Parser:
                 self.calls.append(call)
                 self.stack.append(call)
                 print("CALL", attrcount)
+            
+            case "RETURN_VALUE", _:
+                if not self.active_jumps:
+                    self.return_value = self.stack.pop()
+                    print("RETURN WITH NO CONDITION")
+                    print("Halt.")
+                    return False
+                else:
+                    if self.return_value == None:
+                        self.return_value = PossibleOutcomes([
+                            Outcome([i.condition for i in self.active_jumps], self.stack.pop())
+                        ])
+                    elif isinstance(self.return_value, PossibleOutcomes):
+                        self.return_value.add_outcome(
+                            Outcome([i.condition for i in self.active_jumps], self.stack.pop())
+                        )
+                    else:
+                        raise ValueError("Weird return value.")
+                
+                    # adding condition of executing code after return
+                    for active_jump in self.active_jumps.copy():
+                        self.active_jumps.append(Jump(UnaryOperation("not", active_jump.condition), -1))
+
+                print("RETURN VALUE")
                 
             case _, _:
                 print("FAILED", line)
+
+        return True
 
 def main():
     source_full = '''
@@ -387,7 +438,13 @@ while b > 0:
 print(a)
     '''
 
-    comp = compile(source_basic_if, "test", "exec")
+    #comp = compile(source_basic_if, "test", "exec")
+
+    def a(x):
+        if x > 0:
+            return 1
+    
+    comp = a.__code__
 
     bytecode = dis.Bytecode(comp)
     constants = bytecode.codeobj.co_consts
@@ -405,6 +462,9 @@ print(a)
     print()
     print("CALLS:")
     print(*parser.calls, sep="\n")
+    print()
+    print("RETURN:")
+    print(parser.return_value)
 
 if __name__ == "__main__":
     main()
