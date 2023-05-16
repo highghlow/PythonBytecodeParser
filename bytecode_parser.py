@@ -1,6 +1,7 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 import dis
 from enum import Enum
+from types import CodeType
 from typing import Any, Self
 
 @dataclass
@@ -175,10 +176,12 @@ class Parser:
         if (state == ...):
             state = ParserState()
             
-        for k, v in dict(state).items():
+        for k, v in asdict(state).items():
             setattr(self, k, v)
 
-    def parse(self, bytecode : dis.Bytecode, reset_state = True):
+    def parse(self, bytecode : dis.Bytecode | CodeType, reset_state = True):
+        if isinstance(bytecode, CodeType):
+            bytecode = dis.Bytecode(bytecode)
         if reset_state:
             self.set_state()
         self.prepare(bytecode)
