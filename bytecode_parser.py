@@ -6,9 +6,8 @@ from typing import Any, Self
 
 @dataclass
 class AbstractObject:
-    modified_attrs : dict[str, Self] = field(
-        default_factory=lambda: dict()
-    )
+    def __post_init__(self):
+        self.modified_attrs = dict()
 
     def set_attr(self, attr, val):
         self.modified_attrs[attr] = val
