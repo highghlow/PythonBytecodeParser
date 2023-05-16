@@ -1,8 +1,14 @@
+from dataclasses import dataclass, field
 import dis
+from enum import Enum
+from typing import Any, Self
 
+@dataclass
 class AbstractObject:
-    def __init__(self):
-        self.modified_attrs : dict[str, AbstractObject] = dict()
+    modified_attrs : dict[str, Self] = field(
+        default_factory=lambda: dict()
+    )
+
     def set_attr(self, attr, val):
         self.modified_attrs[attr] = val
     def get_attr(self, attr):
@@ -10,172 +16,104 @@ class AbstractObject:
     def remove_modified_attr(self, attr):
         del self.modified_attrs[attr]
 
+@dataclass
 class Unknown(AbstractObject):
     pass
 
+@dataclass
 class UnknownName(AbstractObject):
-    def __init__(self, name : str):
-        self.name = name
-        
-        super().__init__()
-    def __repr__(self) -> str:
-        return f"unknown-name({self.name}, modifications: {self.modified_attrs})"
+    name : str = None
 
+@dataclass
 class UnknownFastName(AbstractObject):
-    def __init__(self, name : str):
-        self.name = name
-        
-        super().__init__()
-    def __repr__(self) -> str:
-        return f"unknown-fast-name({self.name}, modifications: {self.modified_attrs})"
+    name : str = None
 
+@dataclass
 class Value(AbstractObject):
-    def __init__(self, value) -> None:
-        self.value = value
+    value : Any = None
 
-        super().__init__()
-    def __repr__(self) -> str:
-        return f"value({self.value}, modifications: {self.modified_attrs})"
-
+@dataclass
 class Attribute(AbstractObject):
-    def __init__(self, attr_of : AbstractObject, name : str, value : AbstractObject) -> None:
-        self.of = attr_of
-        self.name = name
-        self.value = value
+    attr_of : AbstractObject = None
+    name : str = None
+    value : AbstractObject = None
 
-        super().__init__()
-    def __repr__(self) -> str:
-        return f"attribute({self.of}.{self.name} = {self.value}, modifications: {self.modified_attrs})"
-
+@dataclass
 class Module(AbstractObject):
-    def __init__(self, name : str) -> None:
-        self.name = name
+    name : str = None
 
-        super().__init__()
-    def __repr__(self) -> str:
-        return f"module({self.name}, modifications: {self.modified_attrs})"
-
+@dataclass
 class BuiltIn(AbstractObject):
-    def __init__(self, name : str) -> None:
-        self.name = name
+    name : str = None
 
-        super().__init__()
-    def __repr__(self) -> str:
-        return f"builtin({self.name}, modifications: {self.modified_attrs})"
-
+@dataclass
 class Call(AbstractObject):
-    def __init__(self, func : AbstractObject, args : list[AbstractObject], kwargs : dict[str, AbstractObject] ={}) -> None:
-        self.func = func
-        self.args = args
-        self.kwargs = kwargs
+    func : AbstractObject = None
+    args : list[AbstractObject] = None
+    kwargs : dict[str, AbstractObject] = field(default_factory=lambda: {})
 
-        super().__init__()
-    def __repr__(self) -> str:
-        return f"call({self.func}, {', '.join(str(i) for i in self.args)}, {', '.join(f'{k, v}' for k, v in self.kwargs.items())}, modifications: {self.modified_attrs})"
-
+@dataclass
 class Operation(AbstractObject):
-    def __init__(self, op : str, obj1 : AbstractObject, obj2 : AbstractObject):
-        self.obj1 = obj1
-        self.obj2 = obj2
-        self.op = op
-        
-        super().__init__()
-    def __repr__(self) -> str:
-        return f"operation({self.obj1} {self.op} {self.obj2})"
+    op : str = None
+    obj1 : AbstractObject = None
+    obj2 : AbstractObject = None
 
+@dataclass
 class UnaryOperation(AbstractObject):
-    def __init__(self, op : str, obj : AbstractObject):
-        self.obj = obj
-        self.op = op
-        
-        super().__init__()
-    def __repr__(self) -> str:
-        return f"operation({self.op} {self.obj})"
+    op : str = None
+    obj : AbstractObject = None
 
+@dataclass
 class Compare(AbstractObject):
-    def __init__(self, comp : str, obj1 : AbstractObject, obj2 : AbstractObject):
-        self.obj1 = obj1
-        self.obj2 = obj2
-        self.comp = comp
-        
-        super().__init__()
-    def __repr__(self) -> str:
-        return f"compare({self.obj1} {self.comp} {self.obj2})"
+    comp : str = None
+    obj1 : AbstractObject = None
+    obj2 : AbstractObject = None
 
+@dataclass
 class Outcome:
-    def __init__(self, conditions : list[AbstractObject], outcome : AbstractObject) -> None:
-        self.conditions = conditions
-        self.outcome = outcome
-    def __repr__(self) -> str:
-        return f"outcome({' && '.join(str(i) for i in self.conditions)} -> {self.outcome})"
+    conditions : list[AbstractObject] = field(default_factory=lambda: [])
+    outcome : AbstractObject = None
 
+@dataclass
 class PossibleOutcomes(AbstractObject):
-    def __init__(self, outcomes : list[Outcome], else_outcome : AbstractObject | None = None) -> None:
-        self.outcomes = outcomes
-        self.else_outcome = else_outcome
+    outcomes : list[Outcome] = field(default_factory=lambda: [])
+    else_outcome : AbstractObject = None
+
     def add_outcome(self, outcome : Outcome):
         self.outcomes.insert(0, outcome)
-    def __repr__(self) -> str:
-        return f"possibility({', '.join(str(i) for i in self.outcomes)}{f', else -> {self.else_outcome}' if self.else_outcome != None else ''})"
 
+@dataclass
 class Jump:
-    def __init__(self, condition : AbstractObject, destination : int) -> None:
-        self.condition = condition
-        self.destination = destination
-    def __repr__(self) -> str:
-        return f"jump({self.condition} -> {self.destination})"
+    condition : AbstractObject = None
+    destination : int = None
 
+@dataclass
 class OrStack:
-    def __init__(self, condition : AbstractObject, end : int) -> None:
-        self.condition = condition
-        self.end = end
+    condition : AbstractObject = None
+    end : int = None
 
-class ParserState:
-    def __init__(self, consts : list = ..., names : dict[str, AbstractObject] = ..., fast_names : dict[str, AbstractObject] = ..., stack : list[AbstractObject] = ..., active_jumps : list[Jump] = ..., or_stack : list[OrStack] = ..., calls : list[Call] = ..., kw_names : list[str] = ..., return_value : AbstractObject | None = ...):
-        if consts == ...:
-            self.consts : list = []
-        else:
-            self.consts : list = consts
-        
-        if names == ...:
-            self.names : dict[str, AbstractObject] = BASE_NAMES
-        else:
-            self.names : dict[str, AbstractObject] = names
-        
-        if fast_names == ...:
-            self.fast_names : dict[str, AbstractObject] = dict()
-        else:
-            self.fast_names : dict[str, AbstractObject] = names
-        
-        if stack == ...:
-            self.stack : list[AbstractObject] = []
-        else:
-            self.stack : list[AbstractObject] = stack
-        
-        if active_jumps == ...:
-            self.active_jumps : list[Jump] = []
-        else:
-            self.active_jumps : list[Jump] = active_jumps
-        
-        if or_stack == ...:
-            self.or_stack : list[OrStack] = []
-        else:
-            self.or_stack : list[OrStack] = or_stack
-        
-        if calls == ...:
-            self.calls : list[Call] = []
-        else:
-            self.calls : list[Call] = calls
-        
-        if kw_names == ...:
-            self.kw_names : list[str] = []
-        else:
-            self.kw_names : list[str] = kw_names
-        
-        if return_value == ...:
-            self.return_value : AbstractObject | None = None
-        else:
-            self.return_value : AbstractObject | None = return_value
+@dataclass
+class LoopDetection:
+    start : int = None
+    end : int = None
+
+class LoopModificationType(Enum):
+    VALUE = 0
+    BREAK = 1
+    CONTINUE = 2
+
+@dataclass
+class LoopModification:
+    type : LoopModificationType = LoopModificationType.VALUE
+    value : AbstractObject | str = None
+    result : AbstractObject = None
+
+class WhileLoop(AbstractObject):
+    def __init__(self, base_values : dict[str, AbstractObject], base_values_fast : dict[str, AbstractObject], modifications : list[LoopModification], condition : AbstractObject):
+        self.base_values = base_values
+        self.base_values_fast = base_values_fast
+        self.modifications = modifications
+        self.condition = condition
 
 BASE_NAMES = {
     "abs" : BuiltIn("abs"),
@@ -198,9 +136,31 @@ BASE_NAMES = {
     "print" : BuiltIn("print"),
 }
 
+@dataclass
+class ParserState:
+    consts : list = field(default_factory=list)
+    
+    names : dict[str, AbstractObject] = field(default_factory = lambda: BASE_NAMES.copy())
+    
+    fast_names : dict[str, AbstractObject] = field(default_factory=dict)
+    
+    stack : list[AbstractObject] = field(default_factory=list)
+    
+    active_jumps : list[Jump] = field(default_factory=list)
+    
+    or_stack : list[OrStack] = field(default_factory=list)
+    
+    calls : list[Call] = field(default_factory=list)
+    
+    kw_names : list[str] = field(default_factory=list)
+    
+    return_value : AbstractObject | None = None
+    
+    loops_detected : list[LoopDetection] = field(default_factory=list)
+
 class Parser:
-    def __init__(self, consts : list = ..., names : dict[str, AbstractObject] = ..., fast_names : dict[str, AbstractObject] = ..., stack : list[AbstractObject] = ..., active_jumps : list[Jump] = ..., or_stack : list[OrStack] = ..., calls : list[Call] = ..., kw_names : list[str] = ..., return_value : AbstractObject | None = ...):
-        self.set_state(ParserState(consts=consts, names=names, fast_names=fast_names, stack=stack, active_jumps=active_jumps, or_stack=or_stack, calls=calls, kw_names=kw_names, return_value=return_value))
+    def __init__(self, state=...):
+        self.set_state(state)
     
     @classmethod
     def from_state(cls, state : ParserState):
@@ -214,154 +174,261 @@ class Parser:
     def set_state(self, state : ParserState = ...):
         if (state == ...):
             state = ParserState()
-        
-        self.consts = state.consts
-        self.names = state.names
-        self.fast_names = state.fast_names
-        self.stack = state.stack
-        self.active_jumps = state.active_jumps
-        self.or_stack = state.or_stack
-        self.calls = state.calls
-        self.kw_names = state.kw_names
-        self.return_value = state.return_value
+            
+        for k, v in dict(state).items():
+            setattr(self, k, v)
 
     def parse(self, bytecode : dis.Bytecode, reset_state = True):
         if reset_state:
             self.set_state()
+        self.prepare(bytecode)
         for line in bytecode:
-            active_jumps_to_remove = []
-            for active_jump in self.active_jumps:
-                if line.offset > active_jump.destination and active_jump.destination != -1:
-                    active_jumps_to_remove.append(active_jump)
-            for active_jump in active_jumps_to_remove:
-                self.active_jumps.remove(active_jump)
-
-            or_stack_items_to_remove = []
-            for or_stack in self.or_stack:
-                if line.offset > or_stack.end:
-                    or_stack_items_to_remove.append(or_stack)
-            for or_stack in or_stack_items_to_remove:
-                self.or_stack.remove(or_stack)
+            self.decay_jumps(line.offset)
 
             if not self.parse_line(line):
                 break
+    
+    def prepare(self, bytecode):
+        loop_started = 0
+        loop_jump = None
+        loop_start = None
+        loop_end = None
+        loop_ended = False
+        for line in bytecode:
+            line : dis.Instruction
+            if loop_ended:
+                if line.is_jump_target:
+                    print(loop_start, loop_end)
+                loop_ended = False
+                continue
+            if loop_started == 0:
+                if line.opname == "POP_JUMP_FORWARD_IF_FALSE":
+                    loop_started = 1
+                    loop_start = line.offset
+            elif loop_started == 1:
+                if line.is_jump_target:
+                    loop_started = 2
+                    loop_jump = line.offset
+                else:
+                    loop_started = 0
+            elif loop_started == 2:
+                if line.opname == "POP_JUMP_BACKWARD_IF_TRUE":
+                    if line.argval == loop_jump:
+                        loop_end = line.offset
+                        loop_ended = True
+                
+    
+    def decay_jumps(self, pos):
+        active_jumps_to_remove = []
+        for active_jump in self.active_jumps:
+            if pos > active_jump.destination and active_jump.destination != -1:
+                active_jumps_to_remove.append(active_jump)
+        for active_jump in active_jumps_to_remove:
+            self.active_jumps.remove(active_jump)
+
+        or_stack_items_to_remove = []
+        for or_stack in self.or_stack:
+            if pos > or_stack.end:
+                or_stack_items_to_remove.append(or_stack)
+        for or_stack in or_stack_items_to_remove:
+            self.or_stack.remove(or_stack)
 
     def parse_line(self, line : dis.Instruction):
-        match (line.opname, line.argval):
-            case "RESUME", _:
-                pass
-            case "PUSH_NULL", _:
-                self.stack.append(None)
-                print("PUSH NULL")
-            case "POP_TOP", _:
-                self.stack.pop()
-                print("POP TOP")
-
-            case "IMPORT_NAME", mdl:
-                self.stack.append(Module(mdl))
-                print("IMPORT", mdl)
-
-            case "LOAD_CONST", const:
-                self.stack.append(Value(const))
-                print("LOAD CONST", const)
-            case "LOAD_NAME", name:
-                self.stack.append(self.names.get(name, UnknownName(name)))
-                print("LOAD NAME", name)
-            case "LOAD_FAST", name:
-                self.stack.append(self.fast_names.get(name, UnknownFastName(name)))
-                print("LOAD NAME", name)
-            case "LOAD_ATTR", attr:
-                attr_of = self.stack.pop()
-                self.stack.append(Attribute(attr_of, attr, attr_of.get_attr(attr)))
-                print("LOAD ATTR of", attr_of, "name", attr)
-
-            case "STORE_NAME", name:
-                if not self.active_jumps:
-                    print("STORE NAME (no active jumps)", name)
-                    self.names[name] = self.stack.pop()
-                elif isinstance(self.names.get(name, None), PossibleOutcomes):
-                    print(f"STORE NAME ({len(self.active_jumps)} active jumps)", name)
-                    self.names[name].add_outcome(Outcome([i.condition for i in self.active_jumps], self.stack.pop()))
-                else:
-                    print(f"STORE NAME ({len(self.active_jumps)} active jumps + changed to possibleOutcomes)", name)
-                    before = self.names.get(name, None)
-                    self.names[name] = PossibleOutcomes(
-                        [Outcome([i.condition for i in self.active_jumps], self.stack.pop())],
-                        else_outcome=before
-                    )
-            case "STORE_ATTR", attr:
-                to = self.stack.pop()
-                val = self.stack.pop()
-                to.set_attr(attr, val)
-                print("STORE ATTR of", val, "name", attr)
-
-            case "COMPARE_OP", comp:
-                obj2 = self.stack.pop()
-                obj1 = self.stack.pop()
-                self.stack.append(Compare(comp, obj1, obj2))
-                print("COMPARE", obj1, comp, obj2)
-            case "POP_JUMP_FORWARD_IF_FALSE", _:
-                destination = line.argval
-                condition = self.stack.pop()
-                for or_stack in self.or_stack:
-                    condition = Operation(op="or", obj1=condition, obj2=or_stack.condition)
-                self.or_stack = []
-                self.active_jumps.append(Jump(condition=condition, destination=destination))
-                print("POP_JUMP_FORWARD_IF_NOT to", destination)
-            case "POP_JUMP_FORWARD_IF_TRUE", _:
-                end = line.argval
-                self.or_stack.append(OrStack(condition=self.stack.pop(), end=end))
-                print("POP_JUMP_FORWARD_IF to", end)
-
-            case "PRECALL", attrcount:
-                print("PRECALL", attrcount)
+        f = None
+        match line.opname:
+            case "RESUME":
+                f = self.parse_RESUME
+            case "PUSH_NULL":
+                f = self.parse_PUSH_NULL
+            case "POP_TOP":
+                f = self.parse_POP_TOP
+            case "IMPORT_NAME":
+                f = self.parse_IMPORT_NAME
+            case "LOAD_CONST":
+                f = self.parse_LOAD_CONST
+            case "LOAD_NAME":
+                f = self.parse_LOAD_NAME
+            case "LOAD_FAST":
+                f = self.parse_LOAD_FAST
+            case "LOAD_ATTR":
+                f = self.parse_LOAD_ATTR
+            case "STORE_NAME":
+                f = self.parse_STORE_NAME
+            case "STORE_FAST":
+                f = self.parse_STORE_FAST
+            case "STORE_ATTR":
+                f = self.parse_STORE_ATTR
+            case "COMPARE_OP":
+                f = self.parse_COMPARE_OP
+            case "POP_JUMP_FORWARD_IF_FALSE":
+                f = self.parse_POP_JUMP_FORWARD_IF_FALSE
+            case "POP_JUMP_FORWARD_IF_TRUE":
+                f = self.parse_POP_JUMP_FORWARD_IF_TRUE
+            case "PRECALL":
+                f = self.parse_PRECALL
             case "KW_NAMES":
-                self.kw_names = line.arg
-            case "CALL", attrcount:
-                attrs = []
-                kwattrs = {}
-                
-                for i in range(attrcount):
-                    if i in self.kw_names:
-                        kwattrs[i] = self.stack.pop()
-                    else:
-                        attrs.insert(0, self.stack.pop())
-                
-                self.kw_names = []
-                func = self.stack.pop()
-                call = Call(func, attrs, kwattrs)
-                self.calls.append(call)
-                self.stack.append(call)
-                print("CALL", attrcount)
-            
-            case "RETURN_VALUE", _:
-                if not self.active_jumps:
-                    self.return_value = self.stack.pop()
-                    print("RETURN WITH NO CONDITION")
-                    print("Halt.")
-                    return False
-                else:
-                    if self.return_value == None:
-                        self.return_value = PossibleOutcomes([
-                            Outcome([i.condition for i in self.active_jumps], self.stack.pop())
-                        ])
-                    elif isinstance(self.return_value, PossibleOutcomes):
-                        self.return_value.add_outcome(
-                            Outcome([i.condition for i in self.active_jumps], self.stack.pop())
-                        )
-                    else:
-                        raise ValueError("Weird return value.")
-                
-                    # adding condition of executing code after return
-                    for active_jump in self.active_jumps.copy():
-                        self.active_jumps.append(Jump(UnaryOperation("not", active_jump.condition), -1))
+                f = self.parse_KW_NAMES
+            case "CALL":
+                f = self.parse_CALL
+            case "RETURN_VALUE":
+                f = self.parse_RETURN
+            case "BINARY_OP":
+                f = self.parse_BINARY_OP
+            case _:
+                f = self.parse_UNKNOWN
 
-                print("RETURN VALUE")
-                
-            case _, _:
-                print("FAILED", line)
+        res = f(line.argval, line)
+        return False if res == False else True
 
-        return True
+    def parse_RESUME(self, argval, line):
+        print("RESUME")
+    
+    def parse_PUSH_NULL(self, argval, line):
+        self.stack.append(None)
+        print("PUSHNULL")
+        
+    def parse_POP_TOP(self, argval, line):
+        self.stack.pop()
+        print("POP TOP")
+        
+    def parse_IMPORT_NAME(self, argval, line):
+        self.stack.append(Module(argval))
+        print("IMPORT NAME")
+    
+    def parse_LOAD_CONST(self, argval, line):
+        self.stack.append(Value(argval))
+        print(f"LOAD CONST {argval}")
+        
+    def parse_LOAD_NAME(self, argval, line):
+        self.stack.append(self.names.get(argval, UnknownName(argval)))
+        print(f"LOAD NAME {argval}")
+        
+    def parse_LOAD_FAST(self, argval, line):
+        self.stack.append(self.fast_names.get(argval, UnknownFastName(argval)))
+        print(f"LOAD NAME {argval}")
+    
+    def parse_LOAD_ATTR(self, argval, line):
+        attr_of = self.stack.pop()
+        self.stack.append(Attribute(attr_of, argval, attr_of.get_attr(argval)))
+        print(f"LOAD ATTR {argval} of {attr_of}")
+    
+    def parse_STORE_NAME(self, argval, line):
+        if not self.active_jumps:
+            print(f"STORE NAME (no active jumps) {argval}")
+            self.names[argval] = self.stack.pop()
+        elif isinstance(self.names.get(argval, None), PossibleOutcomes):
+            print(f"STORE NAME ({len(self.active_jumps)} active jumps) {argval}")
+            self.names[argval].add_outcome(Outcome([i.condition for i in self.active_jumps], self.stack.pop()))
+        else:
+            print(f"STORE NAME ({len(self.active_jumps)} active jumps + changed to possibleOutcomes) {argval}")
+            before = self.names.get(argval, None)
+            self.names[argval] = PossibleOutcomes(
+                [Outcome([i.condition for i in self.active_jumps], self.stack.pop())],
+                else_outcome=before
+            )
+    
+    def parse_STORE_FAST(self, argval, line):
+        if not self.active_jumps:
+            print(f"STORE FAST (no active jumps) {argval}")
+            self.fast_names[argval] = self.stack.pop()
+        elif isinstance(self.names.get(argval, None), PossibleOutcomes):
+            print(f"STORE FAST ({len(self.active_jumps)} active jumps) {argval}")
+            self.fast_names[argval].add_outcome(Outcome([i.condition for i in self.active_jumps], self.stack.pop()))
+        else:
+            print(f"STORE FAST ({len(self.active_jumps)} active jumps + changed to possibleOutcomes) {argval}")
+            before = self.fast_names.get(argval, None)
+            self.fast_names[argval] = PossibleOutcomes(
+                [Outcome([i.condition for i in self.active_jumps], self.stack.pop())],
+                else_outcome=before
+            )
+    
+    def parse_STORE_ATTR(self, argval, line):
+        to = self.stack.pop()
+        val = self.stack.pop()
+        to.set_attr(argval, val)
+        print(f"STORE ATTR {argval} of {val}")
+    
+    def parse_COMPARE_OP(self, argval, line):
+        obj2 = self.stack.pop()
+        obj1 = self.stack.pop()
+        self.stack.append(Compare(argval, obj1, obj2))
+        print(f"COMPARE {obj1} {argval} {obj2}")
+    
+    def parse_POP_JUMP_FORWARD_IF_FALSE(self, argval, line):
+        destination = argval
+        condition = self.stack.pop()
+        for or_stack in self.or_stack:
+            condition = Operation(op="or", obj1=condition, obj2=or_stack.condition)
+        self.or_stack = []
+        self.active_jumps.append(Jump(condition=condition, destination=destination))
+        print(f"POP JUMP FORWARD IF NOT {condition} to {destination}")
+    
+    def parse_POP_JUMP_FORWARD_IF_TRUE(self, argval, line):
+        end = argval
+        self.or_stack.append(OrStack(condition=self.stack.pop(), end=end))
+        print(f"POP_JUMP_FORWARD_IF to {end}")
+    
+    def parse_PRECALL(self, argval, line):
+        print("PRECALL {argval}")
+    
+    def parse_KW_NAMES(self, argval, line):
+        self.kw_names = line.arg
+        print(f"KW NAMES {line.arg}")
+    
+    def parse_CALL(self, argval, line):
+        attrs = []
+        kwattrs = {}
+        
+        for i in range(argval):
+            if i in self.kw_names:
+                kwattrs[i] = self.stack.pop()
+            else:
+                attrs.insert(0, self.stack.pop())
+        
+        self.kw_names = []
+        func = self.stack.pop()
+        call = Call(func, attrs, kwattrs)
+        
+        call_outcomes = PossibleOutcomes(
+            [Outcome([i.condition for i in self.active_jumps], call)]
+        )
+        
+        self.calls.append(call_outcomes)
+        self.stack.append(call_outcomes)
+        print(f"CALL {argval}")
+    
+    def parse_RETURN(self, argval, line):
+        if not self.active_jumps:
+            self.return_value = self.stack.pop()
+            print("RETURN WITH NO CONDITION")
+            print("Halt.")
+            return False
+        else:
+            if self.return_value == None:
+                self.return_value = PossibleOutcomes([
+                    Outcome([i.condition for i in self.active_jumps], self.stack.pop())
+                ])
+            elif isinstance(self.return_value, PossibleOutcomes):
+                self.return_value.add_outcome(
+                    Outcome([i.condition for i in self.active_jumps], self.stack.pop())
+                )
+            else:
+                raise ValueError("Weird return value.")
+        
+            # adding condition of executing code after return
+            for active_jump in self.active_jumps.copy():
+                self.active_jumps.append(Jump(UnaryOperation("not", active_jump.condition), -1))
+
+        print("RETURN VALUE")
+    
+    def parse_BINARY_OP(self, argval, line):
+        arg2 = self.stack.pop()
+        arg1 = self.stack.pop()
+        self.stack.append(Operation(line.argrepr, arg1, arg2))
+        print(f"BINARY {line.argrepr}")
+    
+    def parse_UNKNOWN(self, argval, line):
+        print(f"UNKNOWN {line.opname} {line}")
 
 def main():
     source_full = '''
@@ -430,7 +497,7 @@ assert a == b, "a and b are not equal"
 
     '''
 
-    source_basic_if = '''
+    source_basic_loop = '''
 a = 0
 while b > 0:
     a = a + 1
@@ -440,11 +507,20 @@ print(a)
 
     #comp = compile(source_basic_if, "test", "exec")
 
-    def a(x):
-        if x > 0:
-            return 1
+    def func():
+        a = 5
+        while a > 0:
+            while a < 0:
+                a -= 1
+            
+        a
+        a
+        a
+        a
+        a
+        
     
-    comp = a.__code__
+    comp = func.__code__
 
     bytecode = dis.Bytecode(comp)
     constants = bytecode.codeobj.co_consts
