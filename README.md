@@ -1,5 +1,7 @@
 # Python Bytecode Parser
 This project could predict the output variables of a python program from its bytecode
+## This project does not support most of python bytecode operations
+Please submit pull requests to speed up development
 
 ## Quickstart
 ```python
